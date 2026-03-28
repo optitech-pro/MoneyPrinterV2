@@ -340,6 +340,36 @@ def get_script_sentence_length() -> int:
         else:
             return 4
 
+def get_llm_provider() -> str:
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return json.load(file).get("llm_provider", "local_ollama")
+
+def get_nvidia_api_key() -> str:
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        configured = json.load(file).get("nvidia_api_key", "")
+        return configured or os.environ.get("NVIDIA_API_KEY", "")
+
+def get_nvidia_model() -> str:
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return json.load(file).get("nvidia_model", "meta/llama-3.1-70b-instruct")
+
+def get_image_provider() -> str:
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return json.load(file).get("image_provider", "nanobanana2")
+
+def get_bria_api_key() -> str:
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        configured = json.load(file).get("bria_api_key", "")
+        return configured or os.environ.get("BRIA_API_KEY", "")
+
+def get_bria_model() -> str:
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return json.load(file).get("bria_model", "bria-2.3")
+
+def get_affiliate_tag() -> str:
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return json.load(file).get("affiliate_tag", "")
+
 def get_post_bridge_config() -> dict:
     """
     Gets the Post Bridge configuration with safe defaults.

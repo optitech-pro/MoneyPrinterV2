@@ -1,61 +1,68 @@
+import os
+
 import ollama
 
-from config import get_ollama_base_url
+from config import get_ollama_base_url, get_llm_provider, get_nvidia_api_key, get_nvidia_model
 
 _selected_model: str | None = None
 
 
-def _client() -> ollama.Client:
+def _ollama_client() -> ollama.Client:
     return ollama.Client(host=get_ollama_base_url())
 
 
-def list_models() -> list[str]:
-    """
-    Lists all models available on the local Ollama server.
+def _nvidia_client():
+    from openai import OpenAI
+    api_key = get_nvidia_api_key()
+    if not api_key:
+        api_key = os.environ.get("NVIDIA_API_KEY", "")
+    return OpenAI(
+        base_url="https://integrate.api.nvidia.com/v1",
+        api_key=api_key,
+    )
 
-    Returns:
-        models (list[str]): Sorted list of model names.
-    """
-    response = _client().list()
+
+def list_models() -> list[str]:
+    provider = get_llm_provider()
+    if provider == "nvidia_nim":
+        return [get_nvidia_model() or "meta/llama-3.1-70b-instruct"]
+    response = _ollama_client().list()
     return sorted(m.model for m in response.models)
 
 
 def select_model(model: str) -> None:
-    """
-    Sets the model to use for all subsequent generate_text calls.
-
-    Args:
-        model (str): An Ollama model name (must be already pulled).
-    """
     global _selected_model
     _selected_model = model
 
 
 def get_active_model() -> str | None:
-    """
-    Returns the currently selected model, or None if none has been selected.
-    """
     return _selected_model
 
 
 def generate_text(prompt: str, model_name: str = None) -> str:
-    """
-    Generates text using the local Ollama server.
-
-    Args:
-        prompt (str): User prompt
-        model_name (str): Optional model name override
-
-    Returns:
-        response (str): Generated text
-    """
+    provider = get_llm_provider()
     model = model_name or _selected_model
+
+    if provider == "nvidia_nim":
+        if not model:
+            model = get_nvidia_model() or "meta/llama-3.1-70b-instruct"
+
+        client = _nvidia_client()
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=2048,
+        )
+        return response.choices[0].message.content.strip()
+
+    # Default: local Ollama
     if not model:
         raise RuntimeError(
             "No Ollama model selected. Call select_model() first or pass model_name."
         )
 
-    response = _client().chat(
+    response = _ollama_client().chat(
         model=model,
         messages=[{"role": "user", "content": prompt}],
     )

@@ -217,6 +217,10 @@ class YouTube:
             f"Please generate a YouTube Video Description for the following script: {self.script}. Only return the description, nothing else."
         )
 
+        affiliate_tag = get_affiliate_tag()
+        if affiliate_tag:
+            description += f"\n\n🔗 Check out the products mentioned: {affiliate_tag}"
+
         self.metadata = {"title": title, "description": description}
 
         return self.metadata
@@ -377,9 +381,58 @@ class YouTube:
                 warning(f"Failed to generate image with Nano Banana 2 API: {str(e)}")
             return None
 
+    def generate_image_bria(self, prompt: str) -> str:
+        """
+        Generates an AI Image using the Bria Fibo Image Generate API.
+
+        Args:
+            prompt (str): Prompt for image generation
+
+        Returns:
+            path (str): The path to the generated image.
+        """
+        from config import get_bria_api_key
+        from bria_client import BriaSyncClient
+
+        api_key = get_bria_api_key()
+        if not api_key:
+            error("bria_api_key / BRIA_API_TOKEN is not configured.")
+            return None
+
+        os.environ["BRIA_API_TOKEN"] = api_key
+        print(f"Generating Image using Bria Fibo: {prompt}")
+
+        try:
+            client = BriaSyncClient()
+            response = client.run(
+                endpoint="/image/generate",
+                payload={
+                    "prompt": prompt,
+                    "aspect_ratio": "9:16",
+                    "steps_num": 50,
+                    "guidance_scale": 5,
+                    "sync": True,
+                },
+            )
+
+            result = response.get("result", {})
+            image_url = result.get("image_url")
+            if image_url:
+                img_response = requests.get(image_url, timeout=60)
+                img_response.raise_for_status()
+                return self._persist_image(img_response.content, "Bria Fibo")
+
+            if get_verbose():
+                warning(f"Bria did not return an image. Response: {response}")
+            return None
+        except Exception as e:
+            if get_verbose():
+                warning(f"Failed to generate image with Bria: {str(e)}")
+            return None
+
     def generate_image(self, prompt: str) -> str:
         """
-        Generates an AI Image based on the given prompt using Nano Banana 2.
+        Generates an AI Image using the configured image provider.
 
         Args:
             prompt (str): Reference for image generation
@@ -387,6 +440,11 @@ class YouTube:
         Returns:
             path (str): The path to the generated image.
         """
+        from config import get_image_provider
+
+        provider = get_image_provider()
+        if provider == "bria":
+            return self.generate_image_bria(prompt)
         return self.generate_image_nanobanana2(prompt)
 
     def generate_script_to_speech(self, tts_instance: TTS) -> str:
