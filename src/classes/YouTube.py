@@ -232,45 +232,34 @@ class YouTube:
         Returns:
             image_prompts (List[str]): Generated List of image prompts.
         """
-        n_prompts = len(self.script) / 3
+        n_prompts = max(1, int(len(self.script) / 3))
 
-        prompt = f"""
-        Generate {n_prompts} Image Prompts for AI Image Generation,
-        depending on the subject of a video.
-        Subject: {self.subject}
+        prompt = f"""Generate exactly {n_prompts} image prompts for AI image generation about: {self.subject}
 
-        The image prompts are to be returned as
-        a JSON-Array of strings.
+Return ONLY a JSON array of strings. No explanation, no markdown, no extra text.
 
-        Each search term should consist of a full sentence,
-        always add the main subject of the video.
+Example format:
+["A futuristic glowing smartphone floating in space with neon lights", "A close-up of a sleek wireless earbud on a dark reflective surface"]
 
-        Be emotional and use interesting adjectives to make the
-        Image Prompt as detailed as possible.
-
-        YOU MUST ONLY RETURN THE JSON-ARRAY OF STRINGS.
-        YOU MUST NOT RETURN ANYTHING ELSE.
-        YOU MUST NOT RETURN THE SCRIPT.
-
-        The search terms must be related to the subject of the video.
-        Here is an example of a JSON-Array of strings:
-        ["image prompt 1", "image prompt 2", "image prompt 3"]
-
-        For context, here is the full text:
-        {self.script}
-        """
+Script for context:
+{self.script}"""
 
         completion = (
             str(self.generate_response(prompt))
             .replace("```json", "")
             .replace("```", "")
+            .strip()
         )
 
         image_prompts = []
 
         if "image_prompts" in completion:
-            image_prompts = json.loads(completion)["image_prompts"]
-        else:
+            try:
+                image_prompts = json.loads(completion)["image_prompts"]
+            except Exception:
+                pass
+
+        if not image_prompts:
             try:
                 image_prompts = json.loads(completion)
                 if get_verbose():
@@ -281,9 +270,18 @@ class YouTube:
                         "LLM returned an unformatted response. Attempting to clean..."
                     )
 
-                # Get everything between [ and ], and turn it into a list
-                r = re.compile(r"\[.*\]")
-                image_prompts = r.findall(completion)
+                # Get everything between [ and ], including multiline
+                r = re.compile(r"\[.*?\]", re.DOTALL)
+                matches = r.findall(completion)
+                for match in matches:
+                    try:
+                        parsed = json.loads(match)
+                        if isinstance(parsed, list) and len(parsed) > 0:
+                            image_prompts = parsed
+                            break
+                    except Exception:
+                        continue
+
                 if len(image_prompts) == 0:
                     if get_verbose():
                         warning("Failed to generate Image Prompts. Retrying...")
